@@ -1,0 +1,53 @@
+module v_alu (
+	op1, 
+	op2,
+	alu_op,
+	result,
+	zero,
+	less_than,
+	addsub
+);
+
+	input zero, less_than;
+	input [31:0] op1, op2, result;
+	input [32:0] addsub;
+	input [3:0] alu_op;
+	
+	logic [31:0] and_result, or_result, xor_result, add_result, sub_result;
+	assign and_result = op1 & op2;
+	assign  or_result = op1 | op2;
+	assign xor_result = op1 ^ op2;
+	assign add_result = op1 + op2;
+	assign sub_result = op1 - op2;
+			
+	property alu_and;
+		(alu_op==0) |-> (result==and_result);
+	endproperty
+	a_alu_and: assert property (alu_and);
+	c_alu_and:  cover property (alu_and);
+	
+	property alu_or;
+		(alu_op==1) |-> (result==or_result);
+	endproperty
+	a_alu_or: assert property (alu_or);
+	c_alu_or:  cover property (alu_or);
+
+	property alu_xor;
+		(alu_op==2) |-> (result==xor_result);
+	endproperty
+	a_alu_xor: assert property (alu_xor);
+	c_alu_xor:  cover property (alu_xor);
+	
+	property alu_add;
+		(alu_op==4) |-> (result==add_result);
+	endproperty
+	a_alu_add: assert property (alu_add);
+	c_alu_add:  cover property (alu_add);
+
+	property alu_sub;
+		(alu_op==5) |-> (result==sub_result);
+	endproperty
+	a_alu_sub: assert property (alu_sub);
+	c_alu_sub:  cover property (alu_sub);
+		
+endmodule // v_alu
