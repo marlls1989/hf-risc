@@ -1,0 +1,41 @@
+bind alu
+  v_alu i_alu (
+	.op1(op1), 
+	.op2(op2),
+	.alu_op(alu_op),
+	.result(result),
+	.zero(zero),
+	.less_than(less_than)
+);
+
+bind datapath
+  v_datapath i_datapath (
+	.clock(clock),
+	.reset(reset),
+	.stall_reg(stall_reg),
+	.irq(irq),
+	.irq_ack_s(irq_ack_s),
+	.except(except),
+	.branch_taken(branch_taken),
+	.jump_taken(jump_taken),
+	.stall(stall),
+	.mwait(mwait),
+	.pc(pc),
+	.pc_plus4(pc_plus4),
+	.mem_write_ctl_r(mem_write_ctl_r),
+	.mem_read_ctl_r(mem_read_ctl_r),
+	.funct3(funct3),
+	.funct7(funct7),
+	.alu_src1(alu_src1),
+	.alu_src2(alu_src2),
+	.write_data(write_data),
+	.opcode(opcode),
+	.alu_op_ctl_r(alu_op_ctl_r),
+	.imm_uj_r(imm_uj_r),
+	.imm_i_r(imm_i_r),
+	.read_data1(read_data1),
+	.imm_sb_r(imm_sb_r),
+	.wreg(wreg)
+);
+
+bind reg_bank v_regbank i_reg_bank (.*);

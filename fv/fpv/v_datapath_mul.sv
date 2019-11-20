@@ -12,7 +12,7 @@ module v_datapath
    jump_taken,
    pc,
    pc_plus4,
-   stall,
+   stall_sig,
    mwait,
    mem_write_ctl_r,
    mem_read_ctl_r,
@@ -33,10 +33,11 @@ module v_datapath
    address,
    data_w,
    exception,
+   alu_wait,
    wreg);
 
    // RISC-V signals
-   input clock, reset, stall_reg, irq, irq_ack_s, except, branch_taken, jump_taken, stall, mwait, wreg, exception;
+   input clock, reset, stall_reg, irq, irq_ack_s, except, branch_taken, jump_taken, stall_sig, mwait, wreg, exception, alu_wait;
    input [31:0] pc, pc_plus4, alu_src1, alu_src2, write_data, imm_uj_r, imm_i_r, read_data1, imm_sb_r;
    input [1:0]  mem_write_ctl_r, mem_read_ctl_r;
    input [2:0]  funct3;
@@ -93,7 +94,7 @@ module v_datapath
 `define NOT_MEM_J ((mem_read_ctl_r==0) and (jump_taken==0))
 
    // Not pipeline stall
-`define NOT_STALL ((stall==0) and (mwait==0))
+`define NOT_STALL ((stall_sig==0) and (mwait==0))
 
    ///////////////////////////////////////
    //       Verifying CPU features      //
@@ -115,7 +116,7 @@ module v_datapath
 
    // Stall verification
    property stall_on;
-      (stall==1) |=> (pc==$past(pc));
+      (stall_sig==1) |=> (pc==$past(pc));
    endproperty
    a_stall_on: assert property (stall_on);
    c_stall_on: cover property (stall_on);
@@ -282,42 +283,42 @@ module v_datapath
 
    // BEQ instruction
    property beq_inst;
-      (opcode==`BRANCH_INST) and (funct3==0) ##1 ((branch_taken==1) and (alu_src1==alu_src2) and `NOT_STALL) |-> ##[1:3](pc==$past(pc,3)+$past(imm_sb_r));
+      (opcode==`BRANCH_INST) and (funct3==0) ##1 ((branch_taken==1) and (alu_src1==alu_src2) and `NOT_STALL) |=> ##[0:3](pc==$past(pc,3)+$past(imm_sb_r));
    endproperty
    a_beq_inst: assert property (beq_inst);
    c_beq_inst: cover property (beq_inst);
 
    // BNE instruction
    property bne_inst;
-      (opcode==`BRANCH_INST) and (funct3==1) ##1 ((branch_taken==1) and (alu_src1!=alu_src2) and `NOT_STALL) |-> ##[1:3](pc==$past(pc,3)+$past(imm_sb_r));
+      (opcode==`BRANCH_INST) and (funct3==1) ##1 ((branch_taken==1) and (alu_src1!=alu_src2) and `NOT_STALL) |=> ##[0:3](pc==$past(pc,3)+$past(imm_sb_r));
    endproperty
    a_bne_inst: assert property (bne_inst);
    c_bne_inst: cover property (bne_inst);
 
    // BLT instruction
    property blt_inst;
-      (opcode==`BRANCH_INST) and (funct3==4) ##1 ((branch_taken==1) and (alu_src1<alu_src2) and `NOT_STALL) |-> ##[1:3](pc==$past(pc,3)+$past(imm_sb_r));
+      (opcode==`BRANCH_INST) and (funct3==4) ##1 ((branch_taken==1) and (alu_src1<alu_src2) and `NOT_STALL) |=> ##[0:3](pc==$past(pc,3)+$past(imm_sb_r));
    endproperty
    a_blt_inst: assert property (blt_inst);
    c_blt_inst: cover property (blt_inst);
 
    // BGE instruction
    property bge_inst;
-      (opcode==`BRANCH_INST) and (funct3==5) ##1 ((branch_taken==1) and (alu_src1>=alu_src2) and `NOT_STALL) |-> ##[1:3](pc==$past(pc,3)+$past(imm_sb_r));
+      (opcode==`BRANCH_INST) and (funct3==5) ##1 ((branch_taken==1) and (alu_src1>=alu_src2) and `NOT_STALL) |=> ##[0:3](pc==$past(pc,3)+$past(imm_sb_r));
    endproperty
    a_bge_inst: assert property (bge_inst);
    c_bge_inst: cover property (bge_inst);
 
    // BLTU instruction
    property bltu_inst;
-      (opcode==`BRANCH_INST) and (funct3==6) ##1 ((branch_taken==1) and ($unsigned(alu_src1)<$unsigned(alu_src2)) and `NOT_STALL) |-> ##[1:3](pc==$past(pc,3)+$past(imm_sb_r));
+      (opcode==`BRANCH_INST) and (funct3==6) ##1 ((branch_taken==1) and ($unsigned(alu_src1)<$unsigned(alu_src2)) and `NOT_STALL) |=> ##[0:3](pc==$past(pc,3)+$past(imm_sb_r));
    endproperty
    a_bltu_inst: assert property (bltu_inst);
    c_bltu_inst: cover property (bltu_inst);
 
    // BGEU instruction
    property bgeu_inst;
-      (opcode==`BRANCH_INST) and (funct3==7) ##1 ((branch_taken==1) and ($unsigned(alu_src1)>=$unsigned(alu_src2)) and `NOT_STALL) |-> ##[1:3](pc==$past(pc,3)+$past(imm_sb_r));
+      (opcode==`BRANCH_INST) and (funct3==7) ##1 ((branch_taken==1) and ($unsigned(alu_src1)>=$unsigned(alu_src2)) and `NOT_STALL) |=> ##[0:3](pc==$past(pc,3)+$past(imm_sb_r));
    endproperty
    a_bgeu_inst: assert property (bgeu_inst);
    c_bgeu_inst: cover property (bgeu_inst);
@@ -329,14 +330,14 @@ module v_datapath
    // JAL instruction
    property jal_inst;
       // Ver parametro past $past(signal,3)
-      (opcode==111) ##1 ((jump_taken==1) and `NOT_STALL) |-> ##[1:3](pc==$past(pc,3)+$past(imm_uj_r));
+      (opcode==111) ##1 ((jump_taken==1) and `NOT_STALL) |=> ##[0:3] (pc==$past(pc,3)+$past(imm_uj_r));
    endproperty
    a_jal_inst: assert property (jal_inst);
    c_jal_inst: cover property (jal_inst);
 
    // JALR instruction
    property jalr_inst;
-      (opcode==103) ##1 ((jump_taken==1) and `NOT_STALL) |-> ##1(pc==$past(read_data1)+$past(imm_i_r));
+      (opcode==103) ##1 ((jump_taken==1) and `NOT_STALL) |=> (pc==$past(read_data1)+$past(imm_i_r));
    endproperty
    a_jalr_inst: assert property (jalr_inst);
    c_jalr_inst: cover property (jalr_inst);
@@ -353,9 +354,109 @@ module v_datapath
 
    property fetch;
       (!exception and !branch_taken and !jump_taken and !data_access and !irq and `NOT_STALL)[*3] |->
-       (opcode == reordered_data_in[6:0] && funct3 == reordered_data_in[14:12] && funct7 == reordered_data_in[31:25]);
+        (opcode == reordered_data_in[6:0] && funct3 == reordered_data_in[14:12] && funct7 == reordered_data_in[31:25]);
    endproperty // fetch
    a_fetch: assert property (fetch);
    c_fetch: cover property (fetch);
+
+   ////////////////
+   // Multiplier //
+   ////////////////
+
+   function logic [63:0] muls
+     (input signed [31:0] a, b);
+      return {{32{a[31]}},a}*{{32{b[31]}},b};
+   endfunction // muls
+
+   function logic [63:0] mulu
+     (input unsigned [31:0] a, b);
+      return {{32{1'b0}},a}*{{32{1'b0}},b};
+   endfunction // mulu
+
+   function logic [63:0] mulsu
+     (input signed [31:0] a,
+      input unsigned [31:0] b);
+      return {{32{a[31]}},a}*{{32{1'b0}},b};
+   endfunction // mulsu
+
+   // MUL instruction
+   property mul_inst;
+      logic [63:0]          res;
+      (`NOT_MEM_J and `NOT_STALL and (opcode==`REG_INST) and (funct3==0) and (funct7 == 1))
+        ##1 ($signed(alu_src1) > -8 && $signed(alu_src1) < 8 && $signed(alu_src2) > -8 && $signed(alu_src2) < 8,
+             res = muls(alu_src1, alu_src2))
+                            |=> ##[0:33] $fell(alu_wait) && $past(wreg) && $past(write_data)==res[31:0];
+   endproperty
+   a_mul_inst: assert property (mul_inst);
+   c_mul_inst: cover property (mul_inst);
+/*
+   property mul_inst_negneg;
+      (`NOT_MEM_J and `NOT_STALL and (opcode==`REG_INST) and (funct3==0) and (funct7 == 1))
+             ##1 ($signed(alu_src1) <= 0 && $signed(alu_src2) <= 0)
+                   |=> ##[0:33] $fell(alu_wait) && $past(wreg) && $signed($past(write_data)) >= 0;
+   endproperty
+   a_mul_inst_negneg: assert property (mul_inst_negneg);
+   c_mul_inst_negneg: cover property (mul_inst_negneg);
+   property mul_inst_pospos;
+      (`NOT_MEM_J and `NOT_STALL and (opcode==`REG_INST) and (funct3==0) and (funct7 == 1))
+     ##1 ($signed(alu_src1) >= 0 && $signed(alu_src2) >= 0)
+       |=> ##[0:33] $fell(alu_wait) && $past(wreg) && $signed($past(write_data)) >= 0;
+   endproperty
+   a_mul_inst_pospos: assert property (mul_inst_pospos);
+   c_mul_inst_pospos: cover property (mul_inst_pospos);
+   property mul_inst_negpos;
+      (`NOT_MEM_J and `NOT_STALL and (opcode==`REG_INST) and (funct3==0) and (funct7 == 1))
+     ##1 ($signed(alu_src1) <= 0 && $signed(alu_src2) >= 0)
+       |=> ##[0:33] $fell(alu_wait) && $past(wreg) && $signed($past(write_data)) <= 0;
+   endproperty
+   a_mul_inst_negpos: assert property (mul_inst_negpos);
+   c_mul_inst_negpos: cover property (mul_inst_negpos);
+   property mul_inst_posneg;
+      (`NOT_MEM_J and `NOT_STALL and (opcode==`REG_INST) and (funct3==0) and (funct7 == 1))
+     ##1 ($signed(alu_src1) >= 0 && $signed(alu_src2) <= 0)
+       |=> ##[0:33] $fell(alu_wait) && $past(wreg) && $signed($past(write_data)) <= 0;
+   endproperty
+   a_mul_inst_posneg: assert property (mul_inst_posneg);
+   c_mul_inst_posneg: cover property (mul_inst_posneg);
+   property mul_inst_posneg;
+      (`NOT_MEM_J and `NOT_STALL and (opcode==`REG_INST) and (funct3==0) and (funct7 == 1))
+     ##1 ($signed(alu_src1) >= 0 && $signed(alu_src2) <= 0)
+       |=> ##[0:33] $fell(alu_wait) && $past(wreg) && $signed($past(write_data)) <= 0;
+   endproperty
+   a_mul_inst_posneg: assert property (mul_inst_posneg);
+   c_mul_inst_posneg: cover property (mul_inst_posneg);
+*/
+   // MULH instruction
+   property mulh_inst;
+      logic [63:0] res;
+      (`NOT_MEM_J and `NOT_STALL and (opcode==`REG_INST) and (funct3==1) and (funct7 == 1))
+        ##1 ($signed(alu_src1) > -8 && $signed(alu_src1) < 8 && $signed(alu_src2) > -8 && $signed(alu_src2) < 8,
+             res = muls(alu_src1, alu_src2))
+                   |=> ##[0:33] $fell(alu_wait) && $past(wreg) && $past(write_data)==res[63:32];
+   endproperty
+   a_mulh_inst: assert property (mulh_inst);
+   c_mulh_inst: cover property (mulh_inst);
+
+   // MULHUS instruction
+   property mulhsu_inst;
+      logic [63:0] res;
+      (`NOT_MEM_J and `NOT_STALL and (opcode==`REG_INST) and (funct3==2) and (funct7 == 1))
+        ##1 ($signed(alu_src1) > -8 && $signed(alu_src1) < 8 && $signed(alu_src2) > -8 && $signed(alu_src2) < 8,
+             res = mulsu(alu_src1, alu_src2))
+                   |=> ##[0:33] !alu_wait && $past(wreg) && $past(write_data)==res[63:32];
+   endproperty
+   a_mulhsu_inst: assert property (mulhsu_inst);
+   c_mulhsu_inst: cover property (mulhsu_inst);
+
+   // MULHU instruction
+   property mulhu_inst;
+      logic [63:0] res;
+      (`NOT_MEM_J and `NOT_STALL and (opcode==`REG_INST) and (funct3==3) and (funct7 == 1))
+        ##1 ($signed(alu_src1) > -8 && $signed(alu_src1) < 8 && $signed(alu_src2) > -8 && $signed(alu_src2) < 8,
+             res = mulu(alu_src1, alu_src2))
+                   |=> ##[0:33] !alu_wait && $past(wreg) && $past(write_data)==res[63:32];
+   endproperty
+   a_mulhu_inst: assert property (mulhu_inst);
+   c_mulhu_inst: cover property (mulhu_inst);
 
 endmodule // v_datapath

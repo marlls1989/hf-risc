@@ -1,14 +1,15 @@
-module v_alu (
+module v_alu (clock,
+              reset,
               op1,
               op2,
               alu_op,
               result,
               zero,
               less_than,
-              addsub
-              );
+              alu_wait,
+              addsub);
 
-   input zero, less_than;
+   input zero, less_than, alu_wait, clock, reset;
    input [31:0] op1, op2, result;
    input [32:0] addsub;
    input [3:0]  alu_op;
